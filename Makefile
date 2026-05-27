@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2025 Andrew Trettel
 CC = gcc
-CFLAGS = -std=c99 -Wall -pedantic -Wfatal-errors -Werror -pedantic-errors -O2 -g
+CFLAGS = -std=c99 -Wall -pedantic -Wfatal-errors -Werror -pedantic-errors -O2 -g -MMD -MP
 RM = rm
 RMFLAGS = -frv
 CP = cp
@@ -13,6 +13,9 @@ version = 0.0.0
 DESTDIR = /opt/$(project)-$(version)/usr
 
 OBJ = input.o interpreter.o misc.o operations.o output.o search.o words.o
+DEP = $(OBJ:.o=.d)
+
+-include $(DEP)
 
 $(project): $(project).c $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@
@@ -23,6 +26,7 @@ $(project): $(project).c $(OBJ)
 clean:
 	-$(RM) $(RMFLAGS) $(project)
 	-$(RM) $(RMFLAGS) *.o
+	-$(RM) $(RMFLAGS) *.d
 	-$(RM) $(RMFLAGS) $(project)-*.tar.gz
 
 dist: clean

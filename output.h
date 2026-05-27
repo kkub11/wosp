@@ -23,6 +23,7 @@ typedef struct OutputOptions
     bool count_matches;
     unsigned int maximum;
     OutputType type;
+    bool color;
 } OutputOptions;
 
 OutputOptions init_output_options(void);
@@ -35,6 +36,7 @@ bool page_number_output_options(OutputOptions);
 bool count_matches_output_options(OutputOptions);
 unsigned int maximum_output_options(OutputOptions);
 OutputType type_output_options(OutputOptions);
+bool color_output_options(OutputOptions);
 
 typedef enum ExcerptStatus
 {

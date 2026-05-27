@@ -7,6 +7,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+static const char *ANSI_RESET    = "\033[0m";
+static const char *ANSI_FILENAME = "\033[35m";
+static const char *ANSI_LINENO   = "\033[32m";
+static const char *ANSI_MATCH    = "\033[1;31m";
 
 #include "misc.h"
 #include "output.h"
@@ -25,6 +31,7 @@ OutputOptions init_output_options(void)
     options.count_matches = false;
     options.maximum = UINT_MAX;
     options.type = OT_EXCERPTS;
+    options.color = (isatty(STDOUT_FILENO) == 1);
     return options;
 }
 
@@ -73,6 +80,11 @@ OutputType type_output_options(OutputOptions options)
     return options.type;
 }
 
+bool color_output_options(OutputOptions options)
+{
+    return options.color;
+}
+
 void
 print_matches(Match *match, OutputOptions options)
 {
@@ -90,17 +102,23 @@ print_matches(Match *match, OutputOptions options)
         }
         Word *start_word = advance_word(start_word_match(current_match), print_element, start_n);
         Word   *end_word = advance_word(  end_word_match(current_match), print_element,   end_n);
+        bool col = color_output_options(options);
+        unsigned int match_start = start_position_match(current_match);
+        unsigned int match_end   = end_position_match(current_match);
         if (filename_output_options(options) == true)
         {
-            printf("%s:", filename_word(start_word));
+            if (col) printf("%s%s%s:", ANSI_FILENAME, filename_word(start_word), ANSI_RESET);
+            else     printf("%s:", filename_word(start_word));
         }
         if (page_number_output_options(options) == true)
         {
-            printf("%lu:", page_word(start_word));
+            if (col) printf("%s%lu%s:", ANSI_LINENO, page_word(start_word), ANSI_RESET);
+            else     printf("%lu:", page_word(start_word));
         }
         if (line_number_output_options(options) == true)
         {
-            printf("%lu:", line_word(start_word));
+            if (col) printf("%s%lu%s:", ANSI_LINENO, line_word(start_word), ANSI_RESET);
+            else     printf("%lu:", line_word(start_word));
         }
         Word *current_word = start_word;
         WordIterator word_iterator = init_word_iterator(start_word, next_word, true);
@@ -111,7 +129,10 @@ print_matches(Match *match, OutputOptions options)
             {
                 printf(" ");
             }
-            printf("%s", original_word(current_word));
+            bool is_match = col && position_word(current_word) >= match_start
+                                && position_word(current_word) <= match_end;
+            if (is_match) printf("%s%s%s", ANSI_MATCH, original_word(current_word), ANSI_RESET);
+            else          printf("%s", original_word(current_word));
         }
         printf("\n");
         output_count++;
@@ -123,11 +144,13 @@ print_documents_in_matches(Match *match, OutputOptions options)
 {
     unsigned int output_count = 0;
     DocumentNode *documents = document_list_match_list(match);
+    bool col = color_output_options(options);
     DocumentIterator document_iterator = init_document_iterator(documents);
     while ((iterator_has_next_document(document_iterator) == true) && (output_count < maximum_output_options(options)))
     {
         DocumentNode *current = iterator_next_document(&document_iterator);
-        printf("%s", filename_document(current));
+        if (col) printf("%s%s%s", ANSI_FILENAME, filename_document(current), ANSI_RESET);
+        else     printf("%s", filename_document(current));
         if (count_matches_output_options(options) == true)
         {
             unsigned long count = 0;
@@ -200,6 +223,7 @@ print_excerpts(Match *match, OutputOptions options)
             current_word = next_word(current_word);
         }
 
+        bool col = color_output_options(options);
         Word *start_word = words;
         bool prev_print = false;
         unsigned int excerpt_count = 0;
@@ -239,15 +263,18 @@ print_excerpts(Match *match, OutputOptions options)
                     {
                         if (filename_output_options(options) == true)
                         {
-                            printf("%s:", filename_word(current_word));
+                            if (col) printf("%s%s%s:", ANSI_FILENAME, filename_word(current_word), ANSI_RESET);
+                            else     printf("%s:", filename_word(current_word));
                         }
                         if (page_number_output_options(options) == true)
                         {
-                            printf("%lu:", page_word(current_word));
+                            if (col) printf("%s%lu%s:", ANSI_LINENO, page_word(current_word), ANSI_RESET);
+                            else     printf("%lu:", page_word(current_word));
                         }
                         if (line_number_output_options(options) == true)
                         {
-                            printf("%lu:", line_word(current_word));
+                            if (col) printf("%s%lu%s:", ANSI_LINENO, line_word(current_word), ANSI_RESET);
+                            else     printf("%lu:", line_word(current_word));
                         }
                         start_word = current_word;
                         prev_print = true;
@@ -256,7 +283,10 @@ print_excerpts(Match *match, OutputOptions options)
                     {
                         printf(" ");
                     }
-                    printf("%s", original_word(current_word));
+                    if (col && word_print[i] == ES_MATCH)
+                        printf("%s%s%s", ANSI_MATCH, original_word(current_word), ANSI_RESET);
+                    else
+                        printf("%s", original_word(current_word));
                 }
             }
         }
