@@ -15,13 +15,11 @@ DESTDIR = /opt/$(project)-$(version)/usr
 OBJ = input.o interpreter.o misc.o operations.o output.o search.o words.o
 DEP = $(OBJ:.o=.d)
 
--include $(DEP)
-
 $(project): $(project).c $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	-$(RM) $(RMFLAGS) $(project)
@@ -45,3 +43,5 @@ install: $(project)
 	chmod 644 $(DESTDIR)/share/man/man1/$(project).1
 
 .PHONY: clean dist install
+
+-include $(DEP)

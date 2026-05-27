@@ -121,18 +121,40 @@ print_matches(Match *match, OutputOptions options)
             else     printf("%lu:", line_word(start_word));
         }
         Word *current_word = start_word;
+        Word *prev_printed = NULL;
         WordIterator word_iterator = init_word_iterator(start_word, next_word, true);
         while ((current_word != end_word) && (iterator_has_next_word(word_iterator) == true))
         {
             current_word = iterator_next_word(&word_iterator);
-            if (current_word != start_word)
+            if (prev_printed != NULL)
             {
-                printf(" ");
+                if (line_word(current_word) != line_word(prev_printed))
+                {
+                    printf("\n");
+                    if (filename_output_options(options) == true)
+                    {
+                        if (col) printf("%s%s%s:", ANSI_FILENAME, filename_word(current_word), ANSI_RESET);
+                        else     printf("%s:", filename_word(current_word));
+                    }
+                    if (page_number_output_options(options) == true)
+                    {
+                        if (col) printf("%s%lu%s:", ANSI_LINENO, page_word(current_word), ANSI_RESET);
+                        else     printf("%lu:", page_word(current_word));
+                    }
+                    if (line_number_output_options(options) == true)
+                    {
+                        if (col) printf("%s%lu%s:", ANSI_LINENO, line_word(current_word), ANSI_RESET);
+                        else     printf("%lu:", line_word(current_word));
+                    }
+                }
+                else
+                    printf(" ");
             }
             bool is_match = col && position_word(current_word) >= match_start
                                 && position_word(current_word) <= match_end;
             if (is_match) printf("%s%s%s", ANSI_MATCH, original_word(current_word), ANSI_RESET);
             else          printf("%s", original_word(current_word));
+            prev_printed = current_word;
         }
         printf("\n");
         output_count++;
@@ -225,6 +247,7 @@ print_excerpts(Match *match, OutputOptions options)
 
         bool col = color_output_options(options);
         Word *start_word = words;
+        Word *prev_in_excerpt = NULL;
         bool prev_print = false;
         unsigned int excerpt_count = 0;
         WordIterator word_iterator = init_word_iterator(words, next_word, false);
@@ -247,6 +270,7 @@ print_excerpts(Match *match, OutputOptions options)
                     output_count++;
                 }
                 prev_print = false;
+                prev_in_excerpt = NULL;
             }
             else
             {
@@ -277,16 +301,38 @@ print_excerpts(Match *match, OutputOptions options)
                             else     printf("%lu:", line_word(current_word));
                         }
                         start_word = current_word;
+                        prev_in_excerpt = NULL;
                         prev_print = true;
                     }
                     if (current_word != start_word)
                     {
-                        printf(" ");
+                        if (line_word(current_word) != line_word(prev_in_excerpt))
+                        {
+                            printf("\n");
+                            if (filename_output_options(options) == true)
+                            {
+                                if (col) printf("%s%s%s:", ANSI_FILENAME, filename_word(current_word), ANSI_RESET);
+                                else     printf("%s:", filename_word(current_word));
+                            }
+                            if (page_number_output_options(options) == true)
+                            {
+                                if (col) printf("%s%lu%s:", ANSI_LINENO, page_word(current_word), ANSI_RESET);
+                                else     printf("%lu:", page_word(current_word));
+                            }
+                            if (line_number_output_options(options) == true)
+                            {
+                                if (col) printf("%s%lu%s:", ANSI_LINENO, line_word(current_word), ANSI_RESET);
+                                else     printf("%lu:", line_word(current_word));
+                            }
+                        }
+                        else
+                            printf(" ");
                     }
                     if (col && word_print[i] == ES_MATCH)
                         printf("%s%s%s", ANSI_MATCH, original_word(current_word), ANSI_RESET);
                     else
                         printf("%s", original_word(current_word));
+                    prev_in_excerpt = current_word;
                 }
             }
         }
