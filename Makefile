@@ -33,6 +33,9 @@ dist: clean
 	tar -cvzf $(project)-$(version).tar.gz $(project)-$(version)
 	-$(RM) $(RMFLAGS) $(project)-$(version)
 
+test: $(project)
+	sh tests/run_tests.sh
+
 install: $(project)
 	mkdir -p $(DESTDIR)/bin
 	cp -fv $(project) $(DESTDIR)/bin
@@ -42,6 +45,6 @@ install: $(project)
 	sed -i "s/VERSION/$(version)/g" $(DESTDIR)/share/man/man1/$(project).1
 	chmod 644 $(DESTDIR)/share/man/man1/$(project).1
 
-.PHONY: clean dist install
+.PHONY: clean dist install test
 
 -include $(DEP)
