@@ -111,39 +111,80 @@ op_adj(Match *first_match, Match *second_match, int n, ProximityMode proximity_m
     return proximity_search(first_match, second_match, LE_WORD, 1, n, proximity_mode);
 }
 
+static bool
+is_duplicate_match(Match *m, Match *list)
+{
+    unsigned int start = start_position_match(m);
+    unsigned int end   = end_position_match(m);
+    size_t n = number_of_words_in_match(m);
+    MatchIterator it = init_match_iterator(list);
+    while (iterator_has_next_match(it) == true)
+    {
+        Match *existing = iterator_next_match(&it);
+        if (start_position_match(existing) == start &&
+            end_position_match(existing)   == end   &&
+            number_of_words_in_match(existing) == n)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static Match *
+symmetric_proximity_search(Match *first_match, Match *second_match, LanguageElement element, int n, ProximityMode proximity_mode)
+{
+    Match *a = proximity_search(first_match, second_match, element, -n, +n, proximity_mode);
+    Match *b = proximity_search(second_match, first_match, element, -n, +n, proximity_mode);
+    Match *result = NULL;
+    concatenate_matches(a, &result);
+    MatchIterator it = init_match_iterator(b);
+    while (iterator_has_next_match(it) == true)
+    {
+        Match *m = iterator_next_match(&it);
+        if (is_duplicate_match(m, a) == false)
+        {
+            append_match(m, &result);
+        }
+    }
+    free_matches(a);
+    free_matches(b);
+    return result;
+}
+
 Match *
 op_near(Match *first_match, Match *second_match, int n, ProximityMode proximity_mode)
 {
     assert(n > 0);
-    return proximity_search(first_match, second_match, LE_WORD, -n, +n, proximity_mode);
+    return symmetric_proximity_search(first_match, second_match, LE_WORD, n, proximity_mode);
 }
 
 Match *
 op_among(Match *first_match, Match *second_match, int n, ProximityMode proximity_mode)
 {
     assert(n > 0);
-    return proximity_search(first_match, second_match, LE_CLAUSE, -n, +n, proximity_mode);
+    return symmetric_proximity_search(first_match, second_match, LE_CLAUSE, n, proximity_mode);
 }
 
 Match *
 op_along(Match *first_match, Match *second_match, int n, ProximityMode proximity_mode)
 {
     assert(n > 0);
-    return proximity_search(first_match, second_match, LE_LINE, -n, +n, proximity_mode);
+    return symmetric_proximity_search(first_match, second_match, LE_LINE, n, proximity_mode);
 }
 
 Match *
 op_with(Match *first_match, Match *second_match, int n, ProximityMode proximity_mode)
 {
     assert(n > 0);
-    return proximity_search(first_match, second_match, LE_SENTENCE, -n, +n, proximity_mode);
+    return symmetric_proximity_search(first_match, second_match, LE_SENTENCE, n, proximity_mode);
 }
 
 Match *
 op_same(Match *first_match, Match *second_match, int n, ProximityMode proximity_mode)
 {
     assert(n > 0);
-    return proximity_search(first_match, second_match, LE_PARAGRAPH, -n, +n, proximity_mode);
+    return symmetric_proximity_search(first_match, second_match, LE_PARAGRAPH, n, proximity_mode);
 }
 
 static Match *
