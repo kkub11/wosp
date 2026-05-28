@@ -25,6 +25,20 @@ typedef struct Word
     unsigned long field;
     struct Word *next;
     struct Word *prev;
+    /* Cached pointers to the first/last word of the containing element.
+     * Populated by index_word_boundaries() after the list is built; turn
+     * prev_X/next_X from O(element-size) walks into O(1) hops. */
+    struct Word *clause_start;
+    struct Word *clause_end;
+    struct Word *line_start;
+    struct Word *line_end;
+    struct Word *sentence_start;
+    struct Word *sentence_end;
+    struct Word *paragraph_start;
+    struct Word *paragraph_end;
+    struct Word *page_start;
+    struct Word *page_end;
+    struct Word *document;
 } Word;
 
 typedef enum LanguageElement
@@ -87,6 +101,7 @@ Word *field_first_word(Word *);
 Word *field_last_word(Word *);
 Word *document_word(Word *);
 Word *advance_word(Word *, LanguageElement, int);
+void index_word_boundaries(Word *);
 void print_words(Word *);
 void free_words(Word *);
 

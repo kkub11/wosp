@@ -89,6 +89,17 @@ append_word(Word **list, char *data, char *filename, unsigned long line,
     current->field = full_text_field;
     current->next = NULL;
     current->prev = *list;
+    current->clause_start    = NULL;
+    current->clause_end      = NULL;
+    current->line_start      = NULL;
+    current->line_end        = NULL;
+    current->sentence_start  = NULL;
+    current->sentence_end    = NULL;
+    current->paragraph_start = NULL;
+    current->paragraph_end   = NULL;
+    current->page_start      = NULL;
+    current->page_end        = NULL;
+    current->document        = NULL;
     if ((*list) != NULL)
     {
         (*list)->next = current;
@@ -431,64 +442,103 @@ prev_word(Word *word)
     }
 }
 
+/* These use the boundary pointers populated by index_word_boundaries().
+ * Semantics matching the original next_boolean_element / prev_boolean_element:
+ *   next_X(w): first word of the NEXT element (or last word of list if none).
+ *   prev_X(w): first word of the CURRENT element if w is not already there;
+ *              otherwise first word of the previous element (or w itself if
+ *              there is no previous one).
+ * The asymmetry — next steps forward across the boundary, prev only steps to
+ * the current element's start — is what advance_word(..., n) relies on to
+ * traverse n elements correctly. */
+static inline Word *
+prev_element_start(Word *w, Word *current_start)
+{
+    if (w != current_start) return current_start;
+    Word *p = prev_word(current_start);
+    if (p == NULL) return current_start;
+    /* p is the last word of the previous element; its *_start is what we want. */
+    return p;  /* caller substitutes the correct *_start field */
+}
+
 Word *
 next_clause(Word *word)
 {
-    return next_boolean_element(word, clause_ending_word);
+    if (word == NULL) return NULL;
+    Word *n = next_word(word->clause_end);
+    return (n == NULL) ? word->clause_end : n;
 }
 
 Word *
 prev_clause(Word *word)
 {
-    return prev_boolean_element(word, clause_ending_word);
+    if (word == NULL) return NULL;
+    Word *p = prev_element_start(word, word->clause_start);
+    return (p == word->clause_start) ? p : p->clause_start;
 }
 
 Word *
 next_line(Word *word)
 {
-    return next_numbered_element(word, line_word);
+    if (word == NULL) return NULL;
+    Word *n = next_word(word->line_end);
+    return (n == NULL) ? word->line_end : n;
 }
 
 Word *
 prev_line(Word *word)
 {
-    return prev_numbered_element(word, line_word);
+    if (word == NULL) return NULL;
+    Word *p = prev_element_start(word, word->line_start);
+    return (p == word->line_start) ? p : p->line_start;
 }
 
 Word *
 next_sentence(Word *word)
 {
-    return next_boolean_element(word, sentence_ending_word);
+    if (word == NULL) return NULL;
+    Word *n = next_word(word->sentence_end);
+    return (n == NULL) ? word->sentence_end : n;
 }
 
 Word *
 prev_sentence(Word *word)
 {
-    return prev_boolean_element(word, sentence_ending_word);
+    if (word == NULL) return NULL;
+    Word *p = prev_element_start(word, word->sentence_start);
+    return (p == word->sentence_start) ? p : p->sentence_start;
 }
 
 Word *
 next_paragraph(Word *word)
 {
-    return next_boolean_element(word, paragraph_ending_word);
+    if (word == NULL) return NULL;
+    Word *n = next_word(word->paragraph_end);
+    return (n == NULL) ? word->paragraph_end : n;
 }
 
 Word *
 prev_paragraph(Word *word)
 {
-    return prev_boolean_element(word, paragraph_ending_word);
+    if (word == NULL) return NULL;
+    Word *p = prev_element_start(word, word->paragraph_start);
+    return (p == word->paragraph_start) ? p : p->paragraph_start;
 }
 
 Word *
 next_page(Word *word)
 {
-    return next_numbered_element(word, page_word);
+    if (word == NULL) return NULL;
+    Word *n = next_word(word->page_end);
+    return (n == NULL) ? word->page_end : n;
 }
 
 Word *
 prev_page(Word *word)
 {
-    return prev_numbered_element(word, page_word);
+    if (word == NULL) return NULL;
+    Word *p = prev_element_start(word, word->page_start);
+    return (p == word->page_start) ? p : p->page_start;
 }
 
 static Word *
@@ -537,7 +587,10 @@ field_last_word(Word *word)
 Word *
 document_word(Word *word)
 {
-    return list_first_word(word);
+    if (word == NULL) return NULL;
+    /* document pointer is populated by index_word_boundaries(); fall back to
+     * the O(N) walk only when called before indexing (e.g. mid-parse). */
+    return (word->document != NULL) ? word->document : list_first_word(word);
 }
 
 /* This is a wrapper function to handle the ends of the input word list safely.
@@ -573,6 +626,73 @@ advance_word(Word *word, LanguageElement element, int n)
         }
     }
     return current;
+}
+
+/* One-time O(N) pass that populates clause/line/sentence/paragraph/page
+ * start/end pointers on every Word.  Must be called after the list is fully
+ * built (whether from fresh parse or cache load) and before any query uses
+ * prev_X / next_X / advance_word with element != LE_WORD.
+ *
+ * Note: currently all source words live in full_text_field, so a single
+ * field per file.  If multi-field support is added, restart the *_s
+ * trackers when field_word(w) changes. */
+void
+index_word_boundaries(Word *list)
+{
+    if (list == NULL) return;
+
+    Word *clause_s = NULL, *line_s = NULL, *sentence_s = NULL,
+         *paragraph_s = NULL, *page_s = NULL;
+    bool prev_clause_end    = true;
+    bool prev_sentence_end  = true;
+    bool prev_paragraph_end = true;
+    unsigned long prev_line_no = 0;
+    unsigned long prev_page_no = 0;
+
+    Word *head = list_first_word(list);
+    Word *w = head;
+    while (w != NULL)
+    {
+        if (prev_clause_end)                   clause_s    = w;
+        if (prev_sentence_end)                 sentence_s  = w;
+        if (prev_paragraph_end)                paragraph_s = w;
+        if (line_s == NULL || line_word(w) != prev_line_no) line_s = w;
+        if (page_s == NULL || page_word(w) != prev_page_no) page_s = w;
+
+        w->clause_start    = clause_s;
+        w->sentence_start  = sentence_s;
+        w->paragraph_start = paragraph_s;
+        w->line_start      = line_s;
+        w->page_start      = page_s;
+        w->document        = head;
+
+        prev_clause_end    = clause_ending_word(w);
+        prev_sentence_end  = sentence_ending_word(w);
+        prev_paragraph_end = paragraph_ending_word(w);
+        prev_line_no       = line_word(w);
+        prev_page_no       = page_word(w);
+        w = next_word(w);
+    }
+
+    /* Second pass: walk backward to fill *_end pointers. */
+    w = list_last_word(list);
+    Word *clause_e = w, *line_e = w, *sentence_e = w,
+         *paragraph_e = w, *page_e = w;
+    while (w != NULL)
+    {
+        Word *n = next_word(w);
+        if (n == NULL || n->clause_start    != w->clause_start)    clause_e    = w;
+        if (n == NULL || n->sentence_start  != w->sentence_start)  sentence_e  = w;
+        if (n == NULL || n->paragraph_start != w->paragraph_start) paragraph_e = w;
+        if (n == NULL || n->line_start      != w->line_start)      line_e      = w;
+        if (n == NULL || n->page_start      != w->page_start)      page_e      = w;
+        w->clause_end    = clause_e;
+        w->sentence_end  = sentence_e;
+        w->paragraph_end = paragraph_e;
+        w->line_end      = line_e;
+        w->page_end      = page_e;
+        w = prev_word(w);
+    }
 }
 
 void

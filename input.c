@@ -127,6 +127,7 @@ read_data(int argc, char *argv[], TrieNode **trie, char ***filenames, Word ***wo
                 save_cache((*filenames)[i], (*words)[i]);
             }
         }
+        index_word_boundaries((*words)[i]);
         add_words_to_trie(*trie, (*words)[i]);
     }
 
