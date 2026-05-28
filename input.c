@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cache.h"
 #include "input.h"
 #include "misc.h"
 #include "search.h"
@@ -113,14 +114,18 @@ read_data(int argc, char *argv[], TrieNode **trie, char ***filenames, Word ***wo
         }
         else
         {
-            FILE *f = fopen((*filenames)[i], "r");
-            if (f == NULL)
+            if (!try_load_cache((*filenames)[i], (*filenames)[i], &((*words)[i])))
             {
-                fprintf(stderr, "%s: File '%s' does not exist\n", program_name, (*filenames)[i]);
-                exit(EXIT_FAILURE);
+                FILE *f = fopen((*filenames)[i], "r");
+                if (f == NULL)
+                {
+                    fprintf(stderr, "%s: File '%s' does not exist\n", program_name, (*filenames)[i]);
+                    exit(EXIT_FAILURE);
+                }
+                read_source_words(&((*words)[i]), f, (*filenames)[i]);
+                fclose(f);
+                save_cache((*filenames)[i], (*words)[i]);
             }
-            read_source_words(&((*words)[i]), f, (*filenames)[i]);
-            fclose(f);
         }
         add_words_to_trie(*trie, (*words)[i]);
     }
